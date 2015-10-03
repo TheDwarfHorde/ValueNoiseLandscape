@@ -7,9 +7,9 @@
 /*                                                                            */
 /* ========================================================================== */
 
-// Name: ABC Value Noise 6
+// Name: ABC Value Noise 7
 // Author: Ego Eram Reputo
-// Title: ABC Value Noise 6
+// Title: ABC Value Noise 7
 // Submenu: Test
 // URL: http://www.getpaint.net/redirect/plugins.html
 
@@ -331,11 +331,11 @@ void Render(Surface dst, Surface src, Rectangle rect)
 
     }
 
-    for(double y = rect.Top; y < rect.Bottom; y+=.1)
+    for(double y = rect.Top; y < rect.Bottom; y+=.4)
     {
 
         if (IsCancelRequested) return;
-        for (double x = rect.Left; x < rect.Right; x+=.1)
+        for (double x = rect.Left; x < rect.Right; x+=.4)
         {
             // get Value Noise value from fractal Brownian motion (fBm) routine
             int c = (int)fBm(x,y);
