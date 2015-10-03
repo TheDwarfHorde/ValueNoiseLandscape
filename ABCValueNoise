@@ -1,0 +1,586 @@
+/* ========================================================================== */
+/*                                                                            */
+/*   Value Noise.cs                                                          */
+/*   (c) 2014 Ego Eram Reputo                                                 */
+/*                                                                            */
+/*   Description: Draws landscape using Hugo Elias' Value Noise routines      */
+/*                                                                            */
+/* ========================================================================== */
+
+// Name: ABC Value Noise 5
+// Author: Ego Eram Reputo
+// Submenu: Test
+// URL: http://www.getpaint.net/redirect/plugins.html
+
+#region UICode
+int Amount1 = 50; // [1,100] \u2696 Scale
+int Amount2 = 30; // [10,50] \u2687 Detail
+int Amount3 = 50; // [1,100] \u2601 Elevation
+int Amount4 = 50; // [1,100] \u26c5 Coverage
+int Amount5 = 50; // [1,100] \u2609 Density
+int Amount6 = 1; // [1,2] Wet \u2614         Moisture Zone         \u263c Dry
+byte Amount7 = 0; // [1] \u2637 Color Ramp | Linear | Exponential1 | Exposure1 | Exponential2 | Exposure2 | ACR (Volcanic Archipelago) | LOG (Desert)| Ln (Rainforest) | Sqrt Pi | ASR
+bool Amount8 = false; // [0,1] Flat 2D Map \u2617
+byte Amount9 = 0; // [255] Reseed
+double Amount10 = 0.95; // [0.1, 5.0] Viewer Height above Sea Level
+double Amount11 = 6.25; // [2.0, 12.0] Width of Field of View
+double Amount12 = 0.05; // [0.01, 0.1] Depth if Field of View (apparent distance)
+#endregion
+
+int HeightScale = 1024;
+
+UserBlendOps.NormalBlendOp NormalBlend = new UserBlendOps.NormalBlendOp();
+UserBlendOps.MultiplyBlendOp MultiplyBlend = new UserBlendOps.MultiplyBlendOp();
+UserBlendOps.AdditiveBlendOp AdditiveBlend = new UserBlendOps.AdditiveBlendOp();
+
+void Render(Surface dst, Surface src, Rectangle rect)
+{
+    ColorBgra srcBgra, ShadowColor ;
+    float Width = src.Width;
+    float Height = src.Height;
+    float HeightMod = (int)(Height * 0.3f);
+    float HalfWidth = Width * 0.5f;
+    int LastVNvalue = 0;
+
+    try
+    {
+        r = new Random(Convert.ToInt32(Amount9));
+        r1 = r.Next(1000, 10000);
+        r2 = r.Next(100000, 1000000);
+        r3 = r.Next(1000000000, 2000000000);
+    }
+    catch{}
+
+    // Array for colorization = 32x BGR triplets
+    byte [] ElevationPalette = {
+//  wet	       dry
+// deep blue = sea
+158,84,30,	158,84,30,
+158,84,30,	158,84,30,
+158,84,30,	158,84,30,
+158,84,30,	158,84,30,
+159,86,31,	158,85,30,
+160,88,32,	159,87,31,
+163,91,34,	161,90,33,
+165,94,36,	164,93,35,
+167,97,38,	166,96,37,
+168,98,38,	167,97,38,
+169,99,39,	168,98,38,
+170,101,40,	170,100,39,
+173,104,42,	172,103,41,
+176,107,44,	175,106,43,
+180,111,47,	179,110,46,
+181,113,48,	180,112,47,
+183,115,50,	182,114,49,
+184,116,50,	183,115,50,
+185,116,51,	184,116,50,
+186,118,52,	184,116,50,
+188,120,53,	187,119,52,
+191,122,55,	189,121,54,
+192,123,56,	191,122,55,
+193,124,57,	192,123,56,
+193,124,57,	192,123,56,
+195,126,59,	194,125,58,
+196,128,61,	196,127,60,
+199,130,64,	197,129,63,
+200,132,66,	199,131,65,
+202,134,67,	201,133,66,
+202,134,68,	202,134,67,
+204,136,69,	203,135,69,
+206,138,71,	206,137,70,
+210,141,74,	209,140,73,
+212,143,75,	211,142,74,
+214,145,77,	213,144,76,
+215,146,78,	215,146,78,
+217,148,80,	216,147,79,
+218,149,81,	217,148,80,
+221,152,83,	220,151,82,
+223,154,85,	222,154,84,
+225,157,87,	223,155,85,
+226,158,88,	225,157,87,
+227,159,89,	226,158,88,
+228,161,90,	227,160,89,
+231,164,94,	230,163,92,
+234,167,96,	233,166,95,
+236,170,99,	235,169,98,
+237,171,100,	236,170,99,
+239,173,102,	238,172,101,
+240,175,103,	239,174,103,
+241,177,106,	240,176,105,
+243,181,109,	242,179,108,
+245,184,112,	244,183,111,
+246,186,114,	245,185,113,
+247,188,116,	246,187,115,
+248,189,118,	247,189,117,
+249,192,121,	248,191,120,
+251,195,124,	249,193,122,
+252,197,128,	251,196,126,
+253,200,131,	252,198,130,
+254,201,133,	253,200,132,
+255,203,135,	254,202,134,
+255,204,137,	254,203,136,
+255,207,141,	255,207,140,
+255,211,145,	255,210,144,
+255,214,149,	255,213,148,
+255,216,152,	255,215,151,
+255,217,154,	255,216,153,
+255,218,156,	254,217,156,
+254,221,161,	254,220,161,
+254,223,168,	253,222,167,
+253,226,174,	253,225,173,
+253,227,179,	253,226,178,
+253,229,182,	253,228,181,
+253,230,183,	253,229,182,
+253,230,183,	253,230,183,
+253,230,183,	253,230,183,
+106,169,115,	106,169,115,
+106,169,115,	106,169,115,
+106,169,115,	106,169,116,
+107,170,116,	107,170,118,
+107,170,116,	108,171,122,
+107,170,116,	109,173,126,
+105,169,114,	110,175,132,
+104,168,113,	112,178,139,
+103,166,112,	115,182,148,
+102,165,111,	119,185,157,
+100,163,109,	122,189,165,
+97,161,106,	125,193,174,
+94,158,103,	128,196,181,
+90,156,100,	131,199,188,
+87,153,97,	133,202,194,
+84,150,94,	134,204,197,
+82,148,91,	136,206,201,
+80,147,90,	136,206,201,
+78,145,88,	136,206,201,
+76,143,87,	136,206,201,
+76,143,87,	136,206,201,
+76,143,87,	137,207,202,
+76,143,87,	137,207,202,
+76,143,89,	137,207,203,
+76,144,90,	137,207,204,
+77,145,92,	138,207,205,
+77,145,94,	139,207,206,
+77,147,97,	140,208,207,
+77,148,100,	140,208,208,
+78,149,102,	141,209,210,
+79,151,105,	142,209,211,
+79,151,106,	142,209,211,
+79,152,108,	143,210,212,
+79,153,109,	144,211,213,
+80,154,111,	145,212,215,
+80,154,112,	146,213,216,
+81,155,114,	147,214,217,
+81,155,116,	136,199,210,
+82,156,118,	134,198,209,
+82,156,121,	132,197,208,
+84,158,124,	131,196,207,
+85,159,127,	129,194,205,
+85,160,131,	127,193,204,
+87,161,134,	126,192,203,
+87,161,136,	126,192,203,
+88,162,138,	125,191,203,
+89,163,139,	125,191,203,
+89,163,140,	125,190,202,
+90,164,141,	125,189,201,
+92,165,143,	124,188,200,
+93,166,145,	124,188,199,
+95,168,147,	123,187,198,
+97,168,149,	123,186,197,
+101,170,153,	123,184,196,
+103,172,156,	123,182,194,
+106,174,159,	123,181,193,
+109,177,162,	122,180,192,
+112,178,165,	122,179,191,
+114,180,167,	122,178,190,
+116,181,169,	122,178,190,
+118,182,171,	121,177,189,
+119,182,172,	120,176,188,
+120,183,174,	119,174,187,
+120,184,175,	118,174,187,
+122,186,177,	117,174,187,
+123,188,179,	115,172,186,
+124,189,180,	114,171,186,
+125,191,183,	112,169,185,
+126,193,186,	109,167,183,
+128,196,189,	106,164,182,
+130,198,191,	103,163,182,
+132,200,194,	101,161,181,
+133,202,196,	99,160,181,
+134,204,198,	98,159,180,
+134,205,199,	97,158,180,
+135,206,200,	96,157,180,
+136,207,201,	96,157,180,
+136,208,202,	96,157,180,
+136,208,202,	95,156,179,
+136,208,202,	94,155,179,
+137,207,202,	93,154,178,
+137,207,202,	91,152,177,
+137,207,202,	90,151,176,
+154,219,227,	88,149,176,
+154,219,227,	85,146,175,
+155,220,227,	84,145,175,
+155,220,226,	83,144,175,
+154,218,225,	81,142,174,
+153,217,224,	80,141,174,
+150,213,221,	79,140,174,
+148,210,219,	78,140,173,
+146,208,218,	78,140,173,
+146,207,217,	78,140,173,
+145,206,216,	77,139,172,
+143,205,215,	77,138,172,
+140,202,212,	76,137,171,
+135,199,210,	75,136,171,
+131,196,207,	74,135,170,
+127,193,204,	73,134,169,
+126,192,203,	72,133,168,
+125,191,203,	70,131,167,
+125,189,201,	69,130,166,
+124,188,199,	68,129,165,
+123,184,196,	68,128,165,
+123,181,193,	67,127,164,
+122,179,191,	67,127,164,
+122,178,190,	67,126,163,
+120,175,188,	67,126,163,
+117,174,187,	67,126,163,
+113,170,186,	67,125,162,
+107,166,183,	66,123,160,
+102,162,182,	66,122,159,
+99,160,181,	65,121,158,
+97,158,180,	65,119,156,
+96,157,180,	65,118,155,
+94,155,179,	64,116,153,
+91,152,177,	64,115,152,
+86,147,176,	64,114,152,
+83,144,175,	64,114,152,
+80,141,174,	64,114,151,
+79,140,174,	64,114,151,
+78,140,173,	64,114,151,
+77,138,172,	64,114,151,
+75,136,171,	65,114,151,
+72,133,169,	65,114,151,
+69,130,166,	65,114,151,
+68,128,165,	65,114,151,
+67,127,164,	66,114,151,
+67,126,163,	70,116,152,
+67,124,161,	79,121,152,
+66,121,158,	93,129,153,
+65,117,154,	105,136,155,
+64,115,152,	107,137,156,
+64,114,152,	107,137,156,
+65,114,151,	107,137,156,
+65,114,151,	107,137,156,
+65,115,152,	107,138,157,
+74,119,153,	107,138,157,
+107,137,156,	107,138,157,
+107,137,156,	107,138,157,
+107,138,157,	107,138,157,
+107,138,157,	110,140,158,
+108,138,158,	112,142,160,
+113,142,160,	116,144,162,
+122,149,166,	120,147,164,
+134,157,172,	126,151,168,
+140,162,175,	131,155,170,
+142,163,176,	135,157,172,
+142,163,176,	137,160,173,
+145,165,177,	139,161,174,
+153,171,182,	140,162,175,
+164,179,188,	142,163,176,
+172,185,193,	142,163,176,
+176,187,195,	142,163,176,
+177,188,196,	143,163,176,
+177,189,196,	144,164,176,
+179,191,198,	147,166,178,
+187,197,203,	151,169,180,
+198,207,211,	155,173,183,
+209,215,218,	160,176,186,
+213,219,221,	165,179,188,
+213,220,222,	168,182,190,
+214,220,222,	172,184,192,
+213,219,221,	174,185,193,
+213,219,221,	175,186,194,
+238,240,241,	176,187,195,
+241,243,244,	176,187,195,
+241,243,244,	177,188,196,
+242,244,245,	177,188,196,
+242,244,245,	177,188,196,
+242,244,245,	177,189,196,
+245,246,247,	178,190,197,
+249,250,250,	173,163,157,
+251,251,251,	163,153,148,
+252,252,252,	151,143,139,
+252,252,252,	140,134,131,
+252,252,252,	136,130,128,
+252,252,252,	135,128,126
+};
+
+    for(int y = rect.Top; y < rect.Bottom; y++)
+    {
+        for (int x = rect.Left; x < rect.Right; x++)
+        {
+            // get Value Noise value from fractal Brownian motion (fBm) routine
+            int c = (int)fBm(x,y);
+
+            // modify Value Noise value by way of different color ramps
+            c = cRm(c , Amount7);
+
+            if (x==0)
+            {
+                //calculate height of off-canvas pixel for shadowing purposes
+                int k = (int)fBm(x-1,y);
+                // modify Value Noise value in same manner as (x=0, y)
+                LastVNvalue = cRm(k , Amount7);
+            }
+
+            int cVN = (c>308) ? c/4 : 77; // if below waterline (Value Noise = 308), use height = 77
+
+            int d = c / 4; // normalize into range from 0 to 255 i.e 256 colors.
+
+            d *= 6;  // byte offset in array
+
+            d += (Amount6-1) * 3; // palette selector
+
+            srcBgra = ColorBgra.FromBgra( ElevationPalette[d], ElevationPalette[++d], ElevationPalette[++d], 0xff);
+
+            //   Light Direction and Shadowing:
+            // Compare the current height value against the previous point's height value to find a slope/difference.
+            // Draw pixels on the downside of slopes darker to fill that side with shadow.
+            // Pixels on the lighter side of a slope get a slight brightening.
+
+            int diff = (LastVNvalue - c); // find slope between this pixel and last.
+
+            byte r = Int32Util.ClampToByte((int)(diff * 1.299));
+            byte g = Int32Util.ClampToByte((int)(diff * 1.587));
+            byte b = Int32Util.ClampToByte((int)(diff * 1.114));
+
+            if(diff > 10 && c > 308) // if slope > 10 and elevation is above sea level - darken these pixels
+            {
+                diff = Int32Util.ClampToByte(diff);
+                ShadowColor = Color.FromArgb((byte)(138), diff, diff, diff);
+                srcBgra = MultiplyBlend.Apply(srcBgra, ShadowColor);
+            }
+
+            if(diff < -30 && c > 308) // if slope < -20 and elevation is above sea level - lighten these pixels
+            {
+                r = Int32Util.ClampToByte(srcBgra.R + r);
+                g = Int32Util.ClampToByte(srcBgra.G + g);
+                b = Int32Util.ClampToByte(srcBgra.B + b);
+                ShadowColor = Color.FromArgb((byte)(88+diff), r, g, b);
+                srcBgra = AdditiveBlend.Apply(srcBgra, ShadowColor);
+            }
+
+            LastVNvalue = c;    // store last Value Noise for use next time around.
+
+            if (!Amount8) // true = flat 2d map.  False = project into 3d.
+            {
+                //    Rotational transformation.
+                // Rotates the layer rectangle into a diamond, with top-left corner rotated to the top-middle (i.e. by 45 degrees clockwise).
+                // float x1 = (0.5f * (Width + x - y));
+                // float y1 = (0.5f * (x + y));
+                // However, I'm not rotating...
+                float x1 = x;
+                float y1 = y;
+
+                //    Project flat 2d point into 3d.
+                // Simple 3d projection to convert x, y & height into perspective on a 2d screen.
+                // The basic idea behind any perspective projection is to divide horizonal and vertical position by depth so
+                // that objects further away appear smaller and vice-versa.
+
+                float x2 = HalfWidth;
+                float y2 = HeightMod;
+                float z2 = HalfWidth - cVN + (y1 * (float)Amount10); // last float is the apparent view height.  Larger = higher view, smaller = sea level view.
+                float x3 = (x1 - HalfWidth) * (float)Amount11; // last is the view width.  Larger = wider field of view.
+                float y3 = (Width - y1) * (float)(Amount12/10) + 1.0f; // small float is the distance.  Larger = further away, smaller = closer
+
+                x1 = x2 + x3 / y3;
+                x1 = (x1<0) ? 0 : (x1>=Width) ? Width-1 : x1;
+                y1 = y2 + z2 / y3;
+                y1 = (y1<0) ? 0 : (y1>=Height) ? Height-1 : y1;
+
+                dst[(int)x1,(int)y1] = srcBgra;
+
+                // some in-filling.
+                if (x1>1 && y1<Height-1)
+                {
+                    dst[(int)x1-1,(int)y1] = srcBgra;
+                    dst[(int)x1-1,(int)y1+1] = srcBgra;
+                    dst[(int)x1,(int)y1+1] = srcBgra;
+                }
+
+            }
+            else // display as 2d map
+            {
+                dst[x,y] = srcBgra;
+            }
+        }
+    }
+}
+
+// fBm = Fractal Brownian motion - a triple Value Noise routine.
+double fBm(int x, int y)
+{
+    double k = (PerlinNoise2d(x, y) * HeightScale) * 12 / 15;
+    k += (PerlinNoise2d(x + Amount9, y + Amount9) * HeightScale) * 2 / 15; // adds a bit more Noise, with much less weighting.
+    k += (int)(PerlinNoise2d( x+ Amount9 / 4, y + Amount9 / 4) * HeightScale) / 15;  // adds a tiny bit more, with even less weighting.
+    return k;
+}
+
+// cRm = Color Ramp modification
+int cRm(int c, int type)
+{
+// Color ramp modification or default = linear ramp (c is unchanged).
+// | Linear | Exponential1 | Exposure1 | Exponential2 | Exposure2 | ACR | LOG | Ln | Sqrt Pi | ASR
+    switch (type)
+    {
+        case 0:
+        // linear  = unchanged c
+        break;
+
+        case 1:
+        // Exponential1 curve - concave curve compared to linear
+        c = c * c / HeightScale;
+        break;
+
+        case 2:
+        // Exposure1 curve - convex curve compared to linear
+        c = Math.Min(1023, c + (c - (c * c / HeightScale)) ) ;
+        break;
+
+        case 3:
+        // Exponential2 curve - concave curve compared to linear
+        c = (c * c * c) / (HeightScale * HeightScale);
+        break;
+
+        case 4:
+        // Exposure2 curve - convex curve compared to linear
+        c = Math.Min( 1023, c + ((c * c * c) / (HeightScale * HeightScale)));
+        break;
+
+        case 5:
+        // Abs Cos Rad
+        // Play with the second divisor!
+        c = (int) (HeightScale - Math.Abs(Math.Cos(c/57.29/4)) * HeightScale);
+        break;
+
+        case 6:
+        // Log
+        // Don't go lower than 3.1
+        c = (int) (Math.Log10(c+1) * (HeightScale / 3.64)) ;
+        break;
+
+        case 7:
+        // Natural Log
+        // Don't go higher than 147
+        c = (int) (Math.Log(c+1) * 101) ;
+        break;
+
+        case 8:
+        // SQRTPI
+        c = (int) Math.Sqrt(c * 3.14159 * 255);
+        break;
+
+        case 9:
+        // Abs Sin Rad
+        // Play with the second divisor!
+        c = (int) (1023 - Math.Abs(Math.Sin(c/57.29/6)) * HeightScale );
+        break;
+    }
+    return c;
+}
+
+
+
+static Random r = new Random();
+int r1 = r.Next(1000, 10000);
+int r2 = r.Next(100000, 1000000);
+int r3 = r.Next(1000000000, 2000000000);
+
+double PerlinNoise2d(int x, int y)
+{
+    double total = 0.0;
+    double frequency = 0.075f / Math.Sqrt(Amount1);     // was .015;    // USER ADJUSTABLE
+    double persistence = (35 + Amount2 / 2) / 100.0;   // was .65;   // USER ADJUSTABLE
+    double octaves = 8;           // was  8;         // USER ADJUSTABLE
+    double amplitude = Amount3 / 45.0;         // was 1;       // USER ADJUSTABLE
+    double cloudCoverage = -2.0 + (Amount4 / 22.0);     // was 0;   // USER ADJUSTABLE
+    double cloudDensity = (Amount5 / 30.0) - 1;      // was 1;    // USER ADJUSTABLE
+
+    for(int lcv = 0; lcv < octaves; lcv++)
+    {
+        total = total + Smooth(x * frequency, y * frequency) * amplitude;
+        frequency *= 2;
+        amplitude *= persistence;
+    }
+
+    total += cloudCoverage;
+    total *= cloudDensity;
+
+    // trying to distribute the values along a curve
+    //total = total * total;
+
+    //if(total < 0) total = 0.0;
+    //if(total > 1) total = 1.0;
+    //total = (total < 0) ? 0 : (total > 1) ? 1 : total;
+
+    if (total > 1) total = 1-(total-1); // creating a downward slope from highest points
+    total = (total < 0) ? 0 : total;
+
+    return total;
+}
+
+double Smooth(double x, double y)
+{
+    double n1 = Noise((int)x, (int)y);
+    double n2 = Noise((int)x + 1, (int)y);
+    double n3 = Noise((int)x, (int)y + 1);
+    double n4 = Noise((int)x + 1, (int)y + 1);
+
+    double i1 = Interpolate(n1, n2, x - (int)x, 1);
+    double i2 = Interpolate(n3, n4, x - (int)x, 1);
+
+    return Interpolate(i1, i2, y - (int)y, 1);
+}
+
+double Noise(int x, int y)
+{
+    int n = x + y * 57;
+    n = (n<<13) ^ n;
+
+    return ( 1.0 - ( (n * (n * n * r1 + r2) + r3) & 0x7fffffff) / 1073741824.0);
+}
+
+
+double Interpolate(double x, double y, double a, int iType)
+{
+    double iVal, val;
+
+    switch (iType)
+    {
+        case 0: // Linear_Interpolate
+	       iVal = x*(1-a) + y*a;
+        break;
+
+        case 1:     // Cosine_Interpolate
+            val = (1 - Math.Cos(a * Math.PI)) * .5;
+            iVal = x * (1 - val) + y * val;
+        break;
+/*
+        case 2:     // Sine_Interpolate = blocky.
+            val = (1 - Math.Sin(a * Math.PI / 2)) * .5;
+            iVal = x * (1 - val) + y * val;
+        break;
+
+        case 3: // Cubic Interpolate = dark & blocky
+	       iVal = Math.Pow(x,2) + Math.Pow(y,2) + x ;
+        break;
+
+        case 4: // Sinh Interpolate = blocky
+	       iVal = Math.Sinh(x) + Math.Sinh(y) ;
+        break;
+*/
+        default:
+        iVal = 0;
+        break;
+    }
+    return iVal;
+}
+
