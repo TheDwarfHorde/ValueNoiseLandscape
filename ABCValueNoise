@@ -1,14 +1,15 @@
 /* ========================================================================== */
 /*                                                                            */
 /*   Value Noise.cs                                                          */
-/*   (c) 2014 Ego Eram Reputo                                                 */
+/*   (c) 2015 Ego Eram Reputo  & Technorobbo & Red Ochre                      */
 /*                                                                            */
 /*   Description: Draws landscape using Hugo Elias' Value Noise routines      */
 /*                                                                            */
 /* ========================================================================== */
 
-// Name: ABC Value Noise 5
+// Name: ABC Value Noise 6
 // Author: Ego Eram Reputo
+// Title: ABC Value Noise 6
 // Submenu: Test
 // URL: http://www.getpaint.net/redirect/plugins.html
 
@@ -28,28 +29,6 @@ double Amount12 = 0.05; // [0.01, 0.1] Depth if Field of View (apparent distance
 #endregion
 
 int HeightScale = 1024;
-
-UserBlendOps.NormalBlendOp NormalBlend = new UserBlendOps.NormalBlendOp();
-UserBlendOps.MultiplyBlendOp MultiplyBlend = new UserBlendOps.MultiplyBlendOp();
-UserBlendOps.AdditiveBlendOp AdditiveBlend = new UserBlendOps.AdditiveBlendOp();
-
-void Render(Surface dst, Surface src, Rectangle rect)
-{
-    ColorBgra srcBgra, ShadowColor ;
-    float Width = src.Width;
-    float Height = src.Height;
-    float HeightMod = (int)(Height * 0.3f);
-    float HalfWidth = Width * 0.5f;
-    int LastVNvalue = 0;
-
-    try
-    {
-        r = new Random(Convert.ToInt32(Amount9));
-        r1 = r.Next(1000, 10000);
-        r2 = r.Next(100000, 1000000);
-        r3 = r.Next(1000000000, 2000000000);
-    }
-    catch{}
 
     // Array for colorization = 32x BGR triplets
     byte [] ElevationPalette = {
@@ -313,9 +292,50 @@ void Render(Surface dst, Surface src, Rectangle rect)
 252,252,252,	135,128,126
 };
 
-    for(int y = rect.Top; y < rect.Bottom; y++)
+UserBlendOps.NormalBlendOp NormalBlend = new UserBlendOps.NormalBlendOp();
+UserBlendOps.MultiplyBlendOp MultiplyBlend = new UserBlendOps.MultiplyBlendOp();
+UserBlendOps.AdditiveBlendOp AdditiveBlend = new UserBlendOps.AdditiveBlendOp();
+
+int  rndm = new Random((int)Guid.NewGuid().GetHashCode()).Next();
+byte dstclear =255;
+int prosleep=0;
+
+
+void Render(Surface dst, Surface src, Rectangle rect)
+{
+
+    ColorBgra srcBgra, ShadowColor ;
+    float Width = src.Width;
+    float Height = src.Height;
+    float HeightMod = (int)(Height * 0.3f);
+    float HalfWidth = Width * 0.5f;
+    int LastVNvalue = 0;
+
+    try
     {
-        for (int x = rect.Left; x < rect.Right; x++)
+        r = new Random(Convert.ToInt32(Amount9 + rndm ));
+        r1 = r.Next(1000, 10000);
+        r2 = r.Next(100000, 1000000);
+        r3 = r.Next(1000000000, 2000000000);
+    }
+    catch{}
+
+    if (dstclear!=Amount9)
+    {
+        prosleep=0;
+        dstclear=Amount9;
+        dst.Clear(ColorBgra.Transparent);
+    }else{
+        prosleep++;
+        System.Threading.Thread.Sleep(prosleep * 50);
+
+    }
+
+    for(double y = rect.Top; y < rect.Bottom; y+=.1)
+    {
+
+        if (IsCancelRequested) return;
+        for (double x = rect.Left; x < rect.Right; x+=.1)
         {
             // get Value Noise value from fractal Brownian motion (fBm) routine
             int c = (int)fBm(x,y);
@@ -377,8 +397,8 @@ void Render(Surface dst, Surface src, Rectangle rect)
                 // float x1 = (0.5f * (Width + x - y));
                 // float y1 = (0.5f * (x + y));
                 // However, I'm not rotating...
-                float x1 = x;
-                float y1 = y;
+                float x1 = (float)x;
+                float y1 = (float)y;
 
                 //    Project flat 2d point into 3d.
                 // Simple 3d projection to convert x, y & height into perspective on a 2d screen.
@@ -399,24 +419,24 @@ void Render(Surface dst, Surface src, Rectangle rect)
                 dst[(int)x1,(int)y1] = srcBgra;
 
                 // some in-filling.
-                if (x1>1 && y1<Height-1)
-                {
-                    dst[(int)x1-1,(int)y1] = srcBgra;
-                    dst[(int)x1-1,(int)y1+1] = srcBgra;
-                    dst[(int)x1,(int)y1+1] = srcBgra;
-                }
+                //if (x1>1 && y1<Height-1)
+                //{
+                    //dst[(int)x1-1,(int)y1] = srcBgra;
+                    //dst[(int)x1-1,(int)y1+1] = srcBgra;
+                    //dst[(int)x1,(int)y1+1] = srcBgra;
+                //}
 
             }
             else // display as 2d map
             {
-                dst[x,y] = srcBgra;
+                dst[(int)x,(int)y] = srcBgra;
             }
         }
     }
 }
 
 // fBm = Fractal Brownian motion - a triple Value Noise routine.
-double fBm(int x, int y)
+double fBm(double x, double y)
 {
     double k = (PerlinNoise2d(x, y) * HeightScale) * 12 / 15;
     k += (PerlinNoise2d(x + Amount9, y + Amount9) * HeightScale) * 2 / 15; // adds a bit more Noise, with much less weighting.
@@ -494,7 +514,7 @@ int r1 = r.Next(1000, 10000);
 int r2 = r.Next(100000, 1000000);
 int r3 = r.Next(1000000000, 2000000000);
 
-double PerlinNoise2d(int x, int y)
+double PerlinNoise2d(double x, double y)
 {
     double total = 0.0;
     double frequency = 0.075f / Math.Sqrt(Amount1);     // was .015;    // USER ADJUSTABLE
@@ -583,4 +603,3 @@ double Interpolate(double x, double y, double a, int iType)
     }
     return iVal;
 }
-
